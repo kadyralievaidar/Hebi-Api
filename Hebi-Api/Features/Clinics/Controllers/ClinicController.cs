@@ -51,4 +51,13 @@ public class ClinicController : ControllerBase
         var result = await _mediator.Send(new GetPagedListClinicRequest(dto), cancellationToken);
         return result.AsAspNetCoreResult();
     }
+
+
+    [HttpGet("{clinicId}/doctors")]
+    public async Task<IActionResult> GetClinicWithDoctors(Guid clinicId, CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new GetClinicWithDoctorsRequest(clinicId), cancellationToken);
+        return result.AsAspNetCoreResult();
+    }
+
 }

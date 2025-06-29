@@ -4,6 +4,7 @@ using Hebi_Api.Features.Core.Common.RequestHandling;
 using Hebi_Api.Features.Core.DataAccess.Models;
 using Hebi_Api.Features.Core.DataAccess.UOW;
 using Hebi_Api.Features.Core.Extensions;
+using Hebi_Api.Features.Users.Dtos;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel;
@@ -131,5 +132,40 @@ public class ClinicsService : IClinicsService
         await _unitOfWork.SaveAsync();
 
         return clinic;
+    }
+
+    public async Task<ClinicWithDoctorsDto?> GetClinicWithDoctorsAsync(Guid clinicId)
+    {
+        var clinic = await _unitOfWork.ClinicRepository.GetByIdAsync(clinicId);
+        if (clinic == null) return null;
+
+        var allUsers = await _userManager.Users
+            .Where(u => u.ClinicId == clinicId && !u.IsDeleted)
+            .AsNoTracking()
+            .ToListAsync();
+
+
+        var doctors = new List<ApplicationUser>();
+
+        foreach (var user in allUsers)
+        {
+            if (await _userManager.IsInRoleAsync(user, UserRoles.Doctor.ToString()))
+            {
+                doctors.Add(user);
+            }
+        }
+
+        return new ClinicWithDoctorsDto
+        {
+            ClinicId = clinic.Id,
+            ClinicName = clinic.Name,
+            Doctors = doctors.Select(d => new BasicInfoDto
+            {
+                UserName = d.UserName,
+                FirstName = d.FirstName,
+                LastName = d.LastName,
+                PhoneNumber = d.PhoneNumber,
+            }).ToList()
+        };
     }
 }

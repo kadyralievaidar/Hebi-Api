@@ -23,6 +23,7 @@ public class ClinicServiceTests
     private HebiDbContext _dbContext;
 
     private UserManager<ApplicationUser> _userManager;
+    private RoleManager<IdentityRole<Guid>> _roleManager;
 
     [SetUp]
     public void Setup()
@@ -43,6 +44,7 @@ public class ClinicServiceTests
 
         var serviceProvider = serviceCollection.BuildServiceProvider();
         _userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        _roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         _dbFactory.AddData(new List<ApplicationUser>() {  new ()
         {
             Id = TestHelper.UserId,
@@ -366,4 +368,75 @@ public class ClinicServiceTests
         result.Results.Should().HaveCount(2);
         result.Results.ForEach(c => c.Name.Should().Be("Test"));
     }
+
+    [Test]
+    public async Task GetClinicWithDoctorsAsync_ShouldReturnClinicWithDoctors()
+    {
+        // Arrange
+        var clinicId = Guid.NewGuid();
+
+        await _unitOfWorkSqlite.ClinicRepository.InsertAsync(new Clinic
+        {
+            Id = clinicId,
+            Name = "My Clinic"
+        });
+        await _unitOfWorkSqlite.SaveAsync();
+
+        var roleName = UserRoles.Doctor.ToString();
+
+        if (!await _roleManager.RoleExistsAsync(roleName))
+        {
+            var createRoleResult = await _roleManager.CreateAsync(new IdentityRole<Guid>(roleName));
+            createRoleResult.Succeeded.Should().BeTrue("Doctor role must be created");
+        }
+
+        var doctor1 = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            UserName = "DrOne",
+            Email = "drone@example.com",
+            FirstName = "Name1",
+            LastName = "LastName1",
+            PhoneNumber = "555555555",
+            SecurityStamp = Guid.NewGuid().ToString()
+        };
+
+        var doctor2 = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            UserName = "DrTwo",
+            Email = "drtwo@example.com",
+            FirstName = "Name2",
+            LastName = "LastName2",
+            PhoneNumber = "555555555",
+            SecurityStamp = Guid.NewGuid().ToString()
+        };
+
+        var password = "P@ssw0rd123!";
+
+        var createUserResult1 = await _userManager.CreateAsync(doctor1, password);
+        createUserResult1.Succeeded.Should().BeTrue($"doctor1: {string.Join(", ", createUserResult1.Errors.Select(e => e.Description))}");
+
+        var createUserResult2 = await _userManager.CreateAsync(doctor2, password);
+        createUserResult2.Succeeded.Should().BeTrue($"doctor2: {string.Join(", ", createUserResult2.Errors.Select(e => e.Description))}");
+
+        var addRoleResult1 = await _userManager.AddToRoleAsync(doctor1, roleName);
+        addRoleResult1.Succeeded.Should().BeTrue();
+
+        var addRoleResult2 = await _userManager.AddToRoleAsync(doctor2, roleName);
+        addRoleResult2.Succeeded.Should().BeTrue();
+
+        // Act
+        var result = await _clinicsService.GetClinicWithDoctorsAsync(clinicId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.ClinicId.Should().Be(clinicId);
+        result.ClinicName.Should().Be("My Clinic");
+        result.Doctors.Should().HaveCount(2);
+        result.Doctors.Select(d => d.UserName).Should().Contain(new[] { "DrOne", "DrTwo" });
+    }
+
 }

@@ -20,4 +20,5 @@ public interface IClinicsService
 
     Task<Clinic> GetClinicAsync(Guid clinicId);
     Task<Guid> CreateDefaultClinic();
+    Task<ClinicWithDoctorsDto?> GetClinicWithDoctorsAsync(Guid clinicId);
 }
